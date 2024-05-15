@@ -11,13 +11,14 @@ import qualified Data.Set as Set
 import           Data.Traversable (for)
 import           Data.Word
 import           Foreign.C.String
--- import           Foreign.Ptr
+import           Foreign.C.Types
+import           Foreign.C.ConstPtr (ConstPtr(..))
+
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Syntax
 import           System.Directory
 import           System.FilePath.Posix
 import           TreeSitter.Symbol
-import Foreign.C.ConstPtr (ConstPtr(..))
 
 -- | A tree-sitter language.
 --
@@ -25,9 +26,9 @@ import Foreign.C.ConstPtr (ConstPtr(..))
 data Language
 
 foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_count" ts_language_symbol_count :: ConstPtr Language -> IO Word32
-foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_name" ts_language_symbol_name :: ConstPtr Language -> TSSymbol -> IO CString
+foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_name" ts_language_symbol_name :: ConstPtr Language -> TSSymbol -> IO (ConstPtr CChar)
 foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_type" ts_language_symbol_type :: ConstPtr Language -> TSSymbol -> IO Int
-foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_for_name" ts_language_symbol_for_name :: ConstPtr Language -> CString -> Int -> Bool -> IO TSSymbol
+foreign import capi unsafe "tree_sitter/api.h ts_language_symbol_for_name" ts_language_symbol_for_name :: ConstPtr Language -> ConstPtr CChar -> Int -> Bool -> IO TSSymbol
 
 -- | TemplateHaskell construction of a datatype for the referenced Language.
 mkSymbolDatatype :: Name -> ConstPtr Language -> Q [Dec]
@@ -63,7 +64,7 @@ addDependentFileRelative relativeFile = do
 
 languageSymbols :: ConstPtr Language -> IO [(SymbolType, String)]
 languageSymbols language = ts_language_symbol_count language >>= \ count -> for [0..fromIntegral (pred count)] $ \ symbol -> do
-  cname <- ts_language_symbol_name language symbol
+  ConstPtr cname <- ts_language_symbol_name language symbol
   name <- peekCString cname
   ty <- toEnum <$> ts_language_symbol_type language symbol
   pure (ty, name)
